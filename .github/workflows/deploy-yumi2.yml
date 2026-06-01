@@ -75,4 +75,4 @@ jobs:
             echo "Missing yumi2 binding secrets."
             exit 1
           fi
-          npx wrangler@latest deploy --config wrangler.deploy.toml
+          npx wrangler@latest deploy --config wrangler.deploy.toml --domain yumi2.chenyudian.us.kg

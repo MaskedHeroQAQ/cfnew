@@ -1,0 +1,67 @@
+name: Deploy yumi2 Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "少年你相信光吗"
+      - "wrangler.toml"
+      - ".github/workflows/deploy-yumi2-pages.yml"
+  workflow_run:
+    workflows: ["Generate and Obfuscate Worker Script"]
+    types: [completed]
+
+concurrency:
+  group: deploy-yumi2-pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PAGES_PROJECT_NAME: yumi2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Prepare Pages bundle
+        run: |
+          set -euo pipefail
+          if [ ! -f "少年你相信光吗" ]; then
+            echo "Missing source file: 少年你相信光吗"
+            exit 1
+          fi
+          rm -rf .pages-bundle
+          mkdir .pages-bundle
+          cp "少年你相信光吗" .pages-bundle/_worker.js
+          if [ -f wrangler.toml ]; then
+            cp wrangler.toml .pages-bundle/wrangler.toml
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Missing Cloudflare deployment secrets."
+            exit 1
+          fi
+          COMMIT_MESSAGE="$(git log -1 --pretty=%s)"
+          COMMIT_HASH="$(git rev-parse HEAD)"
+          npx wrangler@latest pages deploy .pages-bundle \
+            --project-name="$PAGES_PROJECT_NAME" \
+            --branch=main \
+            --commit-hash="$COMMIT_HASH" \
+            --commit-message="$COMMIT_MESSAGE"
